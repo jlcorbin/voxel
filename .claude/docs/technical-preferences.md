@@ -53,7 +53,8 @@
 ## Allowed Libraries / Addons
 
 <!-- Add approved third-party dependencies here -->
-- [None configured yet — add as dependencies are approved]
+- **RealtimeMeshComponent** (TriAxis Games, free/open-source) — runtime chunk mesh rendering for the voxel engine. Approved 2026-06-18; integration begins Phase 2. Replaces ProceduralMeshComponent (lower memory, async updates, built-in LODs).
+- **FastNoiseLite** (single-header, MIT) — terrain noise. Approved 2026-06-18; integration deferred to Phase 3b (real terrain generation). Not yet added to the build.
 
 ## Architecture Decisions Log
 
