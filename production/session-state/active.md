@@ -2,47 +2,65 @@
 
 <!-- The session-start hook previews this file. Read it first, then docs/voxel-build-log.md. -->
 
-**Last session:** 2026-06-19 · **Stop reason:** end of day, Phase 2 complete.
+**Last update:** 2026-06-23 · **Stop reason:** Phase 3a complete & PIE-confirmed.
 
 ## TL;DR — where we are
 Building a **cubic (Minecraft-style) voxel world** in **Unreal Engine 5.7**, from-scratch
-C++, rendering chunks via the **RealtimeMeshComponent** plugin. **Phase 2 vertical slice is
-DONE and walk-tested in PIE.** Next is **Phase 3a: chunk streaming around the player.**
+C++, rendering chunks via the **RealtimeMeshComponent** plugin. Phase 2 slice DONE. **Phase 3a
+(chunk streaming) is DONE and PIE-confirmed** — chunks stream in/out around the player (full-3D
+spherical, radius 6), generated + meshed on `UE::Tasks` workers, pooled, collision works, and the
+player auto-spawns onto the surface. **Next: pick greedy meshing (optimization) or Phase 3b (real
+terrain) — see "NEXT STEP" below.**
+
+## First thing next session
+Measure performance under load: PIE, `stat unit` + `stat scenerendering`, fly around fast, confirm
+~16.6 ms and draw calls under ~3000. We built the streaming but haven't profiled it yet.
 
 ## Read these first (in order)
 1. `production/session-state/active.md` — this file.
 2. `docs/voxel-build-log.md` — running build log (newest state at top, full history + lessons).
 3. `docs/architecture/voxel-architecture-proposal.md` — the 8 approved architecture decisions
    ("all recommended"). This is the contract for everything we build.
-4. `Source/Voxel/VoxelChunk.{h,cpp}` — the working slice code.
+4. `Source/Voxel/` — the working code (Generator, Mesher, Chunk, World).
 
-## What exists / works
+## What exists / works (Phase 3a, PIE-confirmed)
 - C++ module **`Voxel`** (`Source/Voxel/`). Depends on `RealtimeMeshComponent` (in `Voxel.Build.cs`).
-- **`AVoxelChunk`** — flat `uint8[ChunkSize³]` voxel data; sine-wave heightmap generation;
-  naive face-cull mesher → `URealtimeMeshSimple` (single poly-group/material slot 0);
-  complex-as-simple collision. Tuning knobs are UPROPERTYs (ChunkSize=32, VoxelSize=100,
-  BaseHeight, HeightAmplitude, NoiseScale, VoxelMaterial). `RegenerateChunk()` is CallInEditor.
-- Verified in PIE: renders correctly (culling + winding good), character can stand on it.
-- A test actor **`VoxelChunk_Slice`** is hand-placed at world [3500,0,0] in `Lvl_ThirdPerson`.
+- **`FVoxelGenerator.h`** — pure, copyable, thread-safe. World-space sine heightmap `IsSolid()`;
+  `Classify()` → AllAir / Interior / Surface so trivial chunks never spawn an actor or mesh.
+- **`FVoxelMesher.h/.cpp`** — pure, thread-safe naive-cull mesher → `FRealtimeMeshStreamSet`.
+  Border culling samples the generator directly (no neighbour-chunk dependency, no seams).
+  Defines `FVoxelChunkResult` (move-only) + `FVoxelApplyQueue` (FCriticalSection + TSharedPtr).
+- **`AVoxelChunk`** — poolable holder: `ApplyMesh(streams, material)` (re-inits RMC, single poly
+  group/material slot 0, complex-as-simple collision) + `ClearMesh()`. No self-generation.
+- **`AVoxelWorld`** — streaming manager (placed via `BP_VoxelWorld` in `Lvl_ThirdPerson`):
+  spherical desired set around player; dispatches gen+mesh on `UE::Tasks::Launch` (≤MaxLoadsPerFrame);
+  applies finished meshes on game thread (≤MaxAppliesPerFrame); pools chunk actors (≤MaxPooledChunks);
+  per-request tokens drop results for chunks unloaded mid-flight; **auto-places the player on the
+  surface at start** (`TryPlacePlayer` via `Generator.HeightAt`, knob `bAutoPlacePlayer`).
+  Knobs: RenderRadius=6 (target 8), ChunkSize=32, VoxelSize=100, height params, throttles,
+  MaxPooledChunks=128, VoxelMaterial (defaults WorldGridMaterial), PlayerSpawnClearance=150.
+- PIE-confirmed: chunks stream in/out as you move, collision blocks, player spawns on top.
+- `BP_VoxelWorld` is placed in `Lvl_ThirdPerson`. The old `VoxelChunk_Slice` was deleted.
 
-## NEXT STEP — Phase 3a: chunk streaming (one approved slice)
-Goal: many chunks load/unload in a radius around the player at 60 FPS, generated and meshed
-**off the game thread**. Per the architecture (Axis 4 & 7), the plan to PROPOSE to the user
-(collaborative — get approval before building):
-1. **`AVoxelWorld` (C++)** chunk manager: tracks player chunk-coord, keeps a ring of chunks
-   within render radius 8 loaded, unloads beyond it. Owns/spawns `AVoxelChunk`s (or pooled
-   mesh components). Throttles mesh "apply" to a few chunks/frame on the game thread.
-2. **Move generation + greedy/naive meshing onto worker threads** (`UE::Tasks::Launch`).
-   Workers touch ONLY plain C++ data (no UObjects). Game thread applies finished StreamSets.
-   The current mesher is already a pure data pass — lift it into a free function/struct.
-3. **`BP_VoxelWorld`** Blueprint subclass exposing the tuning knobs; drag into level / spawn.
-   This replaces the hand-placed `VoxelChunk_Slice` (delete that test actor).
-4. World-space chunk coords: chunk (cx,cy,cz) → actor/section at (cx,cy,cz)*ChunkSize*VoxelSize.
-   Neighbor-aware culling across chunk borders (sample the adjacent chunk's edge voxels so seams
-   between chunks don't render interior faces).
-5. PIE acceptance: fly/walk around, chunks stream in/out, `stat unit` holds ~16.6 ms, no hitches.
+## NEXT STEP — pick one (all per the approved architecture)
+**0. Profile first (quick):** PIE + `stat unit` / `stat scenerendering`, fly fast — confirm
+   ~16.6 ms and draw calls < ~3000. Streaming is built but not yet measured.
 
-Greedy meshing (Axis 3) can be swapped in during or right after 3a as a drop-in optimization.
+**A. Greedy meshing (Axis 3 optimization)** — replace the naive face-cull loop in `FVoxelMesher`
+   with greedy meshing (merge coplanar same-type faces). Big triangle/vertex/draw reduction.
+   Pure mesher change — no streaming/threading changes. Watch out: texture atlas / per-face UVs,
+   AO in vertex colours (deferred). Good "tighten what we have" step.
+
+**B. Phase 3b — real terrain** — integrate **FastNoiseLite** (approved, not yet added): 2D height
+   + 3D density noise for caves/overhangs, then biomes. This is where full-3D streaming pays off
+   (right now the heightmap world makes most 3D chunks trivial). Replaces `FVoxelGenerator`'s
+   placeholder `HeightAt`/`IsSolid`.
+
+**Then:** 3c add/remove voxel editing (cubic makes this a data write + re-mesh of the touched
+   chunk + its border neighbours), 3d materials/biomes (multi-material via poly groups + atlas).
+
+Also pending from architecture: push RenderRadius 6 → 8 once perf is validated; greedy meshing
+is the lever if draw calls/tris get tight.
 
 ## Environment + mcp-unreal facts (so you don't re-learn them)
 - mcp-unreal bridge runs on port 8090. **`status.editor_online` MISREPORTS `false`** even when

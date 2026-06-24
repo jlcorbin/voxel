@@ -2,13 +2,61 @@
 
 <!-- Newest state at top. This is the single source of truth for "where are we". -->
 
-## CURRENT STATE — 2026-06-19 (end of session)
+## CURRENT STATE — 2026-06-23
 
-**Phase:** 2 (Vertical Slice) — ✅ **COMPLETE.** Walk test PASSED (collision works, can
-stand/walk on the chunk in PIE).
-**Next:** Phase 3a — chunk streaming around the player (first real-architecture slice;
-generation + meshing move to background threads). **See `production/session-state/active.md`
-for the full tomorrow handoff.**
+**Phase:** 3a (chunk streaming) — ✅ **COMPLETE & PIE-confirmed.** Chunks stream in/out in
+a spherical radius around the player, generated + meshed on `UE::Tasks` workers, pooled,
+collision `BlockAll`. Player auto-spawns onto the surface (`AVoxelWorld::TryPlacePlayer`
+via `Generator.HeightAt`; knobs `bAutoPlacePlayer`, `PlayerSpawnClearance`). 113+ chunks
+observed streaming; spawn + walk verified.
+
+**Not yet measured:** frame timing under load (`stat unit` / draw calls vs the 60 FPS / ≤3000
+budget) — recommended quick validation before/at the start of next work.
+
+**Next (pick one, see `production/session-state/active.md`):**
+- **Greedy meshing** — drop-in optimization of the mesher (Axis 3), big triangle/draw reduction.
+- **Phase 3b** — real terrain (FastNoiseLite: 2D height + 3D density for caves/overhangs; this
+  is where full-3D streaming starts paying off).
+- Then 3c (add/remove voxel editing), 3d (materials/biomes).
+
+---
+
+## STATE — 2026-06-23 (Phase 3a build)
+
+Player spawned inside terrain (PlayerStart Z≈302 vs surface ~800–1400) → fell through the
+interior (interior chunks skipped by design → no collision below the surface skin). Fixed with
+the C++ auto-place above. Rebuild cycle that works: close editor → delete stale
+`Binaries/Win64/UnrealEditor-Voxel.*` → reopen → "rebuild modules?" Yes. (Live Coding can't do
+layout/reflection changes; it crashed reinstancing the new actor class earlier.)
+
+---
+
+## STATE — 2026-06-22
+
+**Phase:** 3a (chunk streaming) — **C++ written. Blocked on: you rebuild + restart editor,
+then create `BP_VoxelWorld` by hand, then PIE-test.**
+
+**Decisions (this session):** full 3D streaming (spherical radius), start radius 6 (knob to 8),
+**pooled from the start**, user builds the Blueprint by hand.
+
+**Files written (Phase 3a):**
+- `Source/Voxel/VoxelGenerator.h` — pure world fn: world-space sine heightmap + `Classify()`
+  (AllAir / Interior / Surface) so trivial chunks never spawn an actor or mesh.
+- `Source/Voxel/VoxelMesher.h/.cpp` — pure, thread-safe naive-cull mesher → `FRealtimeMeshStreamSet`;
+  border culling samples the generator (no neighbour-chunk dependency). Plus `FVoxelChunkResult`
+  (move-only) and `FVoxelApplyQueue` (FCriticalSection-guarded, TSharedPtr).
+- `Source/Voxel/VoxelChunk.h/.cpp` — REFACTORED to a poolable holder: `ApplyMesh()` / `ClearMesh()`,
+  no self-generation. (The old `RegenerateChunk`/heightmap knobs are gone.)
+- `Source/Voxel/VoxelWorld.h/.cpp` — NEW `AVoxelWorld`: ticks player chunk-coord, maintains a
+  spherical desired set, dispatches gen+mesh on `UE::Tasks::Launch` workers (≤MaxLoadsPerFrame),
+  applies finished meshes on the game thread (≤MaxAppliesPerFrame), pools chunk actors
+  (≤MaxPooledChunks), per-request tokens discard results for chunks unloaded mid-flight.
+  Knobs: RenderRadius=6, ChunkSize=32, VoxelSize=100, height params, throttles, VoxelMaterial
+  (defaults to WorldGridMaterial).
+- No `Voxel.Build.cs` change needed (RealtimeMeshComponent + Engine/Core already present).
+
+**Next:** rebuild (new `AVoxelWorld` UCLASS → editor restart), make `BP_VoxelWorld`, place it,
+delete the `VoxelChunk_Slice` test actor, PIE. See `production/session-state/active.md`.
 
 **What's proven this session:** one 32³ cubic chunk generated in C++ (sine heightmap),
 naive-cull meshed into RealtimeMesh, single material, complex-as-simple collision,

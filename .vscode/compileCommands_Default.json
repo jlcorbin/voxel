@@ -310,5 +310,45 @@
 			"@E:\\UE5 Projects\\Voxel\\.vscode\\compileCommands_Default\\Voxel.1.rsp"
 		],
 		"directory": "E:\\UE4 Projects\\_UE4\\UE_5.7\\Engine\\Source"
+	},
+	{
+		"file": "E:\\UE5 Projects\\Voxel\\Source\\Voxel\\VoxelGenerator.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.51.36231\\bin\\Hostx64\\x64\\cl.exe",
+			"@E:\\UE5 Projects\\Voxel\\.vscode\\compileCommands_Default\\Voxel.1.rsp"
+		],
+		"directory": "E:\\UE4 Projects\\_UE4\\UE_5.7\\Engine\\Source"
+	},
+	{
+		"file": "E:\\UE5 Projects\\Voxel\\Source\\Voxel\\VoxelMesher.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.51.36231\\bin\\Hostx64\\x64\\cl.exe",
+			"@E:\\UE5 Projects\\Voxel\\.vscode\\compileCommands_Default\\Voxel.1.rsp"
+		],
+		"directory": "E:\\UE4 Projects\\_UE4\\UE_5.7\\Engine\\Source"
+	},
+	{
+		"file": "E:\\UE5 Projects\\Voxel\\Source\\Voxel\\VoxelMesher.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.51.36231\\bin\\Hostx64\\x64\\cl.exe",
+			"@E:\\UE5 Projects\\Voxel\\.vscode\\compileCommands_Default\\Voxel.1.rsp"
+		],
+		"directory": "E:\\UE4 Projects\\_UE4\\UE_5.7\\Engine\\Source"
+	},
+	{
+		"file": "E:\\UE5 Projects\\Voxel\\Source\\Voxel\\VoxelWorld.cpp",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.51.36231\\bin\\Hostx64\\x64\\cl.exe",
+			"@E:\\UE5 Projects\\Voxel\\.vscode\\compileCommands_Default\\Voxel.1.rsp"
+		],
+		"directory": "E:\\UE4 Projects\\_UE4\\UE_5.7\\Engine\\Source"
+	},
+	{
+		"file": "E:\\UE5 Projects\\Voxel\\Source\\Voxel\\VoxelWorld.h",
+		"arguments": [
+			"C:\\Program Files\\Microsoft Visual Studio\\18\\Community\\VC\\Tools\\MSVC\\14.51.36231\\bin\\Hostx64\\x64\\cl.exe",
+			"@E:\\UE5 Projects\\Voxel\\.vscode\\compileCommands_Default\\Voxel.1.rsp"
+		],
+		"directory": "E:\\UE4 Projects\\_UE4\\UE_5.7\\Engine\\Source"
 	}
 ]
